@@ -1,6 +1,5 @@
 const nextConfig = {
-  experimental: {
-    appDir: true,       
+  experimental: {      
     ppr: 'incremental',  
   },
 }
