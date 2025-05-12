@@ -1,11 +1,11 @@
+// app/lib/data.ts
+
 import postgres from 'postgres'
 import {
   Revenue,
-  LatestInvoice,
   LatestInvoiceRaw,
+  LatestInvoice,
   InvoicesTable,
-  // CustomerField,
-  // InvoiceForm,
 } from './definitions'
 import { formatCurrency } from './utils'
 
@@ -30,25 +30,28 @@ export async function fetchCardData() {
     ])
 
   return {
-    totalPaidInvoices: Number(collected[0]?.sum ?? 0),
+    totalPaidInvoices:   Number(collected[0]?.sum ?? 0),
     totalPendingInvoices: Number(pending[0]?.sum ?? 0),
-    numberOfInvoices:      Number(totalInvoices[0]?.count ?? 0),
-    numberOfCustomers:     Number(totalCustomers[0]?.count ?? 0),
+    numberOfInvoices:     Number(totalInvoices[0]?.count ?? 0),
+    numberOfCustomers:    Number(totalCustomers[0]?.count ?? 0),
   }
 }
 
-/** ➤ RevenueChart: ingresos mensuales */
+/** ➤ RevenueChart: ingresos mensuales (simula delay de 3s) */
 export async function fetchRevenue(): Promise<Revenue[]> {
-  return sql<Revenue[]>`
+  console.log('Fetching revenue data...')  
+  await new Promise((res) => setTimeout(res, 3000))
+  const data = await sql<Revenue[]>`
     SELECT month, revenue
       FROM revenue
      ORDER BY month
   `
+  console.log('Data fetch completed after 3 seconds.')
+  return data
 }
 
 /** ➤ LatestInvoices: últimas 5 facturas, con amount formateado */
 export async function fetchLatestInvoices(): Promise<LatestInvoice[]> {
-  // obtenemos la data cruda con amount numérico
   const rows = await sql<LatestInvoiceRaw[]>`
     SELECT
       invoices.id,
@@ -61,7 +64,6 @@ export async function fetchLatestInvoices(): Promise<LatestInvoice[]> {
     ORDER BY invoices.date DESC
     LIMIT 5
   `
-  // devolvemos LatestInvoice (amount: string) pasándolo por formatCurrency
   return rows.map((inv) => ({
     ...inv,
     amount: formatCurrency(inv.amount),
