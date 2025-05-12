@@ -1,22 +1,22 @@
-'use client';
+import { ArrowPathIcon } from '@heroicons/react/24/outline'
+import clsx from 'clsx'
+import Image from 'next/image'
+import { lusitana } from '@/app/ui/fonts'
+import { LatestInvoice } from '@/app/lib/definitions'
 
-import { ArrowPathIcon } from '@heroicons/react/24/outline';
-import clsx from 'clsx';
-import Image from 'next/image';
-import { lusitana } from '@/app/ui/fonts';
-import { LatestInvoice } from '@/app/lib/definitions';
-
-export default function LatestInvoices({
-  latestInvoices,
+export default async function LatestInvoices({
+  promise,
 }: {
-  latestInvoices: LatestInvoice[];
+  promise: Promise<LatestInvoice[]>
 }) {
+  const items = await promise
+
   return (
     <div className="flex w-full flex-col md:col-span-4">
       <h2 className={`${lusitana.className} mb-4 text-xl`}>Latest Invoices</h2>
       <div className="flex flex-col justify-between rounded-xl bg-gray-50 p-4">
         <div className="bg-white px-6">
-          {latestInvoices.map((invoice, i) => (
+          {items.map((invoice, i) => (
             <div
               key={invoice.id}
               className={clsx(
@@ -41,7 +41,9 @@ export default function LatestInvoices({
                   </p>
                 </div>
               </div>
-              <p className={`${lusitana.className} truncate text-sm font-medium`}>
+              <p
+                className={`${lusitana.className} truncate text-sm font-medium`}
+              >
                 {invoice.amount}
               </p>
             </div>
@@ -53,5 +55,5 @@ export default function LatestInvoices({
         </div>
       </div>
     </div>
-  );
+  )
 }
