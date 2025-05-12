@@ -1,83 +1,78 @@
-// app/lib/data.ts
+import { sql } from './connect'
+import type { InvoicesTable } from './definitions'
 
-import postgres from 'postgres'
-import {
-  Revenue,
-  LatestInvoiceRaw,
-  LatestInvoice,
-  InvoicesTable,
-} from './definitions'
-import { formatCurrency } from './utils'
+const ITEMS_PER_PAGE = 6
 
-const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' })
+/**
+ * Trae un array de facturas filtradas y paginadas,
+ * devolviendo exactamente las propiedades que marca InvoicesTable.
+ */
+export async function fetchFilteredInvoices(
+  query: string,
+  currentPage: number,
+): Promise<InvoicesTable[]> {
+  const offset = (currentPage - 1) * ITEMS_PER_PAGE
 
-/** ➤ Cards: datos agregados de la tabla invoices/customers */
-export async function fetchCardData() {
-  const [collected, pending, totalInvoices, totalCustomers] =
-    await Promise.all([
-      sql<{ sum: bigint }[]>`
-        SELECT SUM(amount) AS sum FROM invoices WHERE status = 'paid'
-      `,
-      sql<{ sum: bigint }[]>`
-        SELECT SUM(amount) AS sum FROM invoices WHERE status = 'pending'
-      `,
-      sql<{ count: bigint }[]>`
-        SELECT COUNT(*) AS count FROM invoices
-      `,
-      sql<{ count: bigint }[]>`
-        SELECT COUNT(*) AS count FROM customers
-      `,
-    ])
-
-  return {
-    totalPaidInvoices:   Number(collected[0]?.sum ?? 0),
-    totalPendingInvoices: Number(pending[0]?.sum ?? 0),
-    numberOfInvoices:     Number(totalInvoices[0]?.count ?? 0),
-    numberOfCustomers:    Number(totalCustomers[0]?.count ?? 0),
-  }
-}
-
-/** ➤ RevenueChart: ingresos mensuales (simula delay de 3s) */
-export async function fetchRevenue(): Promise<Revenue[]> {
-  console.log('Fetching revenue data...')  
-  await new Promise((res) => setTimeout(res, 3000))
-  const data = await sql<Revenue[]>`
-    SELECT month, revenue
-      FROM revenue
-     ORDER BY month
-  `
-  console.log('Data fetch completed after 3 seconds.')
-  return data
-}
-
-/** ➤ LatestInvoices: últimas 5 facturas, con amount formateado */
-export async function fetchLatestInvoices(): Promise<LatestInvoice[]> {
-  const rows = await sql<LatestInvoiceRaw[]>`
+  // rows viene tipado con los campos crudos de la consulta:
+  const rows = await sql<{
+    id:           string
+    amount:       string
+    status:       string
+    date:         string
+    customer_id:  string
+    name:         string
+    image_url:    string
+    email:        string
+  }[]>`
     SELECT
       invoices.id,
       invoices.amount,
+      invoices.status,
+      invoices.date,
+      invoices.customer_id,
       customers.name,
       customers.image_url,
       customers.email
     FROM invoices
-    JOIN customers ON invoices.customer_id = customers.id
+    JOIN customers
+      ON invoices.customer_id = customers.id
+    WHERE
+      customers.name  ILIKE ${`%${query}%`} OR
+      customers.email ILIKE ${`%${query}%`}
     ORDER BY invoices.date DESC
-    LIMIT 5
+    LIMIT  ${ITEMS_PER_PAGE}
+    OFFSET ${offset}
   `
-  return rows.map((inv) => ({
-    ...inv,
-    amount: formatCurrency(inv.amount),
+
+  // Mapeamos al shape que describe InvoicesTable (ojo: image_url, no imageUrl)
+  return rows.map(inv => ({
+    id:          inv.id,
+    amount:      Number(inv.amount),
+    status:      inv.status as 'pending' | 'paid',
+    date:        inv.date,
+    customer_id: inv.customer_id,
+    name:        inv.name,
+    email:       inv.email,
+    image_url:   inv.image_url,
   }))
 }
 
 /**
- * STUB TEMPORAL hasta Capítulo 8
- * Permite que la tabla de facturas compile,
- * pero de momento devuelve siempre un array vacío.
+ * Cuenta cuántas páginas hacen falta según el total de facturas
+ * que coincidan con el filtro, usando ITEMS_PER_PAGE.
  */
-export async function fetchFilteredInvoices(
+export async function fetchInvoicesPages(
   query: string,
-  currentPage: number
-): Promise<InvoicesTable[]> {
-  return []
+): Promise<number> {
+  const result = await sql<{ count: bigint }[]>`
+    SELECT COUNT(*) AS count
+      FROM invoices
+      JOIN customers
+        ON invoices.customer_id = customers.id
+     WHERE
+       customers.name  ILIKE ${`%${query}%`} OR
+       customers.email ILIKE ${`%${query}%`}
+  `
+  const count = result[0]?.count ?? BigInt(0)
+  return Math.ceil(Number(count) / ITEMS_PER_PAGE)
 }
