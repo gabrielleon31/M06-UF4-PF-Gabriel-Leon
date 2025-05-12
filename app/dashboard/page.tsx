@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx
 export const dynamic = 'force-static'  // fuerza prerender estático + streaming
 
 import { Suspense } from 'react'
